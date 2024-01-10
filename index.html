@@ -1,0 +1,158 @@
+<!DOCTYPE html5>
+<html>
+<head>
+    <title>TTS Evaluation System</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <link rel="shortcut icon" href="static/images/favicon.ico">
+    <script
+    src="http://code.jquery.com/jquery-3.3.1.min.js"
+    integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
+    crossorigin="anonymous"></script>
+    <script
+    src="https://cdn.jsdelivr.net/npm/vue@2.5.13/dist/vue.min.js"></script>
+    <link rel="stylesheet" href="static/styles/main.css">
+</head>
+
+<body>
+
+    <div id="tts-eval-app">
+        <div id="header">
+            TTS
+            <img id="logo" src="static/images/full-logo.png">
+        </div>
+        <div id="body">
+        <div id="exp-sel-bar">
+            <select id="exp-selector" class="btn" v-model="cur_exp">
+                <option value="" disabled selected>请选择实验……</option>
+                <template v-for="exp in exp_list">
+                    <option :value="exp">{{ exp.type }} -  {{ exp.name }}</option>
+                </template>
+            </select>
+            <div id="exp-guide" v-if="cur_exp.name">
+                {{ cur_exp.guide }}
+            </div>
+        </div>
+        <div id="ep-sel-bar" class="btn_wrapper">
+            <button class="btn" @click="prevEp">Prev</button>
+            <template class="btn" v-if="cur_exp.name">
+                <select class="btn" v-model="cur_exp.cur_ep_id">
+                    <template v-for="id in cur_exp.tot_eps_num">
+                        <option :value="id">{{ id }} / {{ cur_exp.tot_eps_num }}</option>
+                    </template>
+                </select>
+            </template>
+            <button class="btn" @click="nextEp">Next</button>
+        </div>
+        <div id="exp-body">
+            <div id="transcript" v-if="cur_exp.name">
+                {{ cur_exp.eps_list[cur_exp.cur_ep_id-1].ts }}
+            </div>
+            <div class="audio_select_wrapper" v-if="cur_exp.type === 'MOS'">
+
+                <div class="audio_wrapper">
+                    <template v-for="(audio,index) in cur_exp.eps_list[cur_exp.cur_ep_id-1].ep" :key="index">
+                        <div v-if="index===0" class="next_experiment">
+                            <p class="text1">干净语音</p>
+                        </div>
+                        <div v-if="index===5" class="next_experiment">
+                            <p class="text1">带噪声场景，0db</p>
+                        </div>
+                        <div v-if="index===10" class="next_experiment">
+                            <p class="text1">带噪声场景，5db</p>
+                        </div>
+                        <div v-if="index===15" class="next_experiment">
+                            <p class="text1">带噪声场景，10db</p>
+                        </div>
+                        <div v-if="index===20" class="next_experiment">
+                            <p class="text1">噪声增强场景，0db</p>
+                        </div>
+                        <div v-if="index===25" class="next_experiment">
+                            <p class="text1">噪声增强场景，5db</p>
+                        </div>
+                        <div v-if="index===30" class="next_experiment">
+                            <p class="text1">噪声增强场景，10db</p>
+                        </div>
+                        <div class="audio_iteration">
+                            <div class="ref_audio">
+                                <p class="text">Spk reference audio:{{cur_exp.eps_list[cur_exp.cur_ep_id-1].spk_ref_emo}}</p>
+                                <div><audio controls :src="audio.spk_ref"></audio></div>
+                            </div>
+                            <div class="ref_audio">
+                                <p class="text">emo reference audio:{{cur_exp.eps_list[cur_exp.cur_ep_id-1].emo_ref_emo}}</p>
+                                <div><audio controls :src="audio.emo_ref"></audio></div>
+                            </div>
+                            <div class="ref_audio">
+                                <p class="text">synthesized audio:{{audio.model}}</p>
+                                <div class="audio"><audio controls :src="audio.src"></audio></div>
+                            </div>
+                            <div class="input_container,ref_audio" >
+                                <input class="btn" type="number" v-model="audio.eval"  min="3.5" max="5.0" step="0.1" placeholder="3.5~5.0" />
+                            </div>
+                        </div>
+
+
+                    </template>
+                </div>
+<!--                <div class="select_wrapper">-->
+<!--                    <template v-for="audio in cur_exp.eps_list[cur_exp.cur_ep_id-1].ep">-->
+<!--                        <div class="input_container">-->
+<!--                            <input class="btn" type="number" v-model="audio.eval" min="3.5" max="5.0" step="0.1" placeholder="3.5~5.0" />-->
+<!--                        </div>-->
+<!--                    </template>-->
+<!--                </div>-->
+            </div>
+
+            <div class="audio_select_wrapper" v-else-if="cur_exp.type === 'ABX'">
+                <div class="audio_wrapper">
+                    <template v-for="audio in cur_exp.eps_list[cur_exp.cur_ep_id-1].ep">
+                        <div class="audio"><audio controls :src="audio.src"></audio></div>
+                    </template>
+                </div>
+                <div class="select_wrapper">
+                    <div class="selector"><select class="btn" v-model="cur_exp.eps_list[cur_exp.cur_ep_id-1].sel">
+                        <template v-for="(audio, idx) in cur_exp.eps_list[cur_exp.cur_ep_id-1].ep">
+                            <option :value="audio.src">{{ convertNumToABC(idx) }}</option>
+                        </template>
+                        <!-- 这里如果用 value="NP"，会出现不可预期的错误：value可能没有任何值 -->
+                        <option :value="defaultNP">NP</option></select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="audio_select_wrapper" v-else-if="cur_exp.type === 'CM'">
+               <div class="audio_wrapper">
+                    <template v-for="audio in cur_exp.eps_list[cur_exp.cur_ep_id-1].ep">
+                        <div class="audio"><audio controls :src="audio.src"></audio></div>
+                    </template>
+                </div>
+                <div class="select_wrapper">
+                    <template v-for="audio in cur_exp.eps_list[cur_exp.cur_ep_id-1].ep">
+                        <div class="selector"><select class="btn" v-model="audio.eval">
+                            <template v-for="style in cur_exp.valid_styles_list">
+                                <option :value="style">{{ style }}</option>
+                            </template></select>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- 新实验类型，请写出html代码
+            <div v-else-if="cur_exp.type === 'newType'">
+                ...
+            </div>
+            -->
+
+        </div>
+        <div id="submit-bar" class="btn_wrapper">
+            <button class="btn" @click="saveResult">Save</button>
+            <button class="btn" @click="sendResult">Submit</button>
+        </div>
+        </div><!-- div .body end -->
+    </div>
+
+    <script src="static/scripts/config.js"></script>
+    <script src="static/scripts/common.js"></script>
+    <script src="static/scripts/tts-eval-app.js"></script>
+
+</body>
+</html>
